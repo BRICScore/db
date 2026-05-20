@@ -15,6 +15,7 @@ import shutil
 import dotenv
 import zipfile
 from pymongo.asynchronous.collection import AsyncCollection
+from celery import Celery
 
 
 @asynccontextmanager
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="BRICS API",lifespan=lifespan)
+worker_app = Celery("Background Tasks", broker="redis://localhost:6379/0")
 
 @app.get("/test")
 async def test():
