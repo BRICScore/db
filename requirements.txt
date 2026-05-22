@@ -6,3 +6,5 @@ aiofiles
 pathlib
 uvicorn
 python-multipart
+celery
+redis

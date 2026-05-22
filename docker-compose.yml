@@ -8,7 +8,61 @@ services:
       - ./certs:/certs:ro
       - /home/brics/dataset:/dataset
     restart: unless-stopped
+
+  mongo:
+    image: mongo:7.0.34
+    container_name: mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - /home/brics/mongodb_data:/data/db
+      - ./mongod.conf:/etc/mongod.conf:ro
+      - ./init:/docker-entrypoint-initdb.d:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    env_file:
+      - .env
+    command: ["mongod", "--config", "/etc/mongod.conf"]
+
   redis:
-    image: redis:latest
+    container_name: redis
+    image: redis:8.6.3
     ports:
       - "6379:6379"
+    restart: unless-stopped
+    command: >
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - /home/brics/redis:/data
+
+  celery-worker:
+    build: .
+    container_name: celery-worker
+    command: >
+      celery -A src.celery_app.worker_app worker
+      --loglevel=info
+      --concurrency=4
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - api
+
+  celery-beat:
+    build: .
+    container_name: celery-beat
+    command: >
+      celery -A src.celery_app.worker_app beat
+      --loglevel=info
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - redis
