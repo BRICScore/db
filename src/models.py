@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Literal, Optional
 from bson import ObjectId
 
@@ -19,8 +19,7 @@ class MeasurementMetadata(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, json_encoders={ObjectId: str}, populate_by_name=True)
 
-
-    id: ObjectId = Field(alias="_id")
+    id: str = Field(alias="_id")
     timestamp: float
     duration_ms: int
     filepath_raw: str

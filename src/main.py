@@ -5,22 +5,22 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Query
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
-from utils import jsonl_to_bson, bson_to_jsonl, zip_directory, plain_json
+from .utils import jsonl_to_bson, bson_to_jsonl, zip_directory, plain_json
 import tempfile
-from db import connectToDB
+from .db import connect_to_db
 import os
 from typing import Any, List, Mapping, Optional
-from models import *
+from .models import MeasurementMetadata
 import shutil
 import dotenv
-import zipfile
 from pymongo.asynchronous.collection import AsyncCollection
+from .tasks import handle_measurement_upload
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     dotenv.load_dotenv(".env")
-    app.state.client = await connectToDB()
+    app.state.client = await connect_to_db()
     app.state.FILE_PATH=Path(os.getenv("FILE_PATH"))
     app.state.FILE_PATH.mkdir(exist_ok=True)
     app.state.db = app.state.client.get_database("brics")
@@ -58,46 +58,27 @@ async def uploadMeasurement(measurement_file_zip: UploadFile = File(...),
     existing_measurement = await measurement_coll.find_one({"_id": _id})
 
     if existing_measurement:
-        measurement_id = existing_measurement["_id"]
+        measurement_id = str(existing_measurement["_id"])
     else:
-        measurement_id = _id
+        measurement_id = str(_id)
 
-    tmp_dir = Path(tempfile.mkdtemp())
-    with zipfile.ZipFile(measurement_file_zip.file) as zf:
-        zf.extractall(tmp_dir)
+    filepath_raw: Path = app.state.FILE_PATH / f"{measurement_id}_raw"
+    filepath_clean: Path = app.state.FILE_PATH / f"{measurement_id}_clean"
+    filepath_features: Path = app.state.FILE_PATH / f"{measurement_id}_features"
+    metadata_dict["_id"] = measurement_id
+    metadata_dict["filepath_raw"] = str(filepath_raw)
+    metadata_dict["filepath_clean"] = str(filepath_clean)
+    metadata_dict["filepath_features"] = str(filepath_features)
+    metadata = MeasurementMetadata(**metadata_dict)
 
-    try:
-        filepath_raw: Path = app.state.FILE_PATH / f"{measurement_id}_raw"
-        filepath_clean: Path = app.state.FILE_PATH / f"{measurement_id}_clean"
-        filepath_features: Path = app.state.FILE_PATH / f"{measurement_id}_features"
-        metadata_dict["_id"] = measurement_id
-        metadata_dict["filepath_raw"] = str(filepath_raw)
-        metadata_dict["filepath_clean"] = str(filepath_clean)
-        metadata_dict["filepath_features"] = str(filepath_features)
-    except Exception:
-        raise HTTPException(500, "Failed to prepare space for measurement")
+    tmp_file = tempfile.NamedTemporaryFile(delete=False)
+    shutil.copyfileobj(measurement_file_zip.file, tmp_file)
+    handle_measurement_upload.delay(tmp_file.name, metadata.model_dump())
     
-    try:
-        metadata = MeasurementMetadata(**metadata_dict)
-    except Exception:
-        raise HTTPException(400, "Invalid metadata structure")
-  
-    try:      
-        await measurement_coll.update_one({"_id": measurement_id}, {"$set": metadata.model_dump(by_alias=True)}, upsert=True)
-        await jsonl_to_bson(tmp_dir / "raw", filepath_raw)
-        await jsonl_to_bson(tmp_dir / "clean", filepath_clean)
-        await jsonl_to_bson(tmp_dir / "features", filepath_features)
-        return_json = metadata.model_dump_json(by_alias=True)   
-        
-    except Exception:
-        await measurement_coll.delete_one({"_id": measurement_id})
-        filepath_raw.unlink(missing_ok=True)
-        filepath_clean.unlink(missing_ok=True)
-        filepath_features.unlink(missing_ok=True)
-        raise
+    measurement_file_zip.file.close()
+    return_json = metadata.model_dump_json(by_alias=True)
                 
-    
-    return JSONResponse(content=return_json, status_code=201)
+    return JSONResponse(content=return_json, status_code=202)
 
 @app.get("/measurement/download")
 async def downloadMeasurements( person_id: Optional[str] = Query(None),  
