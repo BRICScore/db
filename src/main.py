@@ -210,6 +210,7 @@ async def upload_model  (model_zip: UploadFile = Form(...),
 
     metadata_dict["filepath_weights"] = app.state.MODEL_PATH / f"{model_id}_weights"
     metadata_dict["filepath_pth"] = app.state.MODEL_PATH / f"{model_id}_pth"
+    metadata_dict["filepath_pth"] = app.state.MODEL_PATH / f"{model_id}_scaler"
     
     metadata = ModelMetadata(**metadata_dict)
 
@@ -238,6 +239,7 @@ async def download_model():
 
     shutil.copyfile(model_dict["filepath_weights"], model_dir / "model_weights")
     shutil.copyfile(model_dict["filepath_pth"], model_dir / "model_pth")
+    shutil.copyfile(model_dict["filepath_scaler"], model_dir / "model_scaler")
 
     zip_path = tmp_dir / "model.zip"
     zip_directory(model_dir, zip_path)

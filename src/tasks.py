@@ -82,6 +82,7 @@ def handle_model_upload(tmp_file: str, metadata_dict: dict):
     try:
         os.replace(tmp_dir / "model_pth", metadata.filepath_pth)
         os.replace(tmp_dir / "model_weights", metadata.filepath_weights)
+        os.replace(tmp_dir / "model_scaler", metadata.filepath_scaler)
     except Exception:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         Path(tmp_file).unlink(missing_ok=True)

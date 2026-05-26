@@ -36,5 +36,6 @@ class ModelMetadata(BaseModel):
     timestamp: float
     filepath_weights: str
     filepath_pth: str
+    filepath_scaler: str
 
 
