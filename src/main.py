@@ -10,11 +10,11 @@ import tempfile
 from .db import connect_to_db
 import os
 from typing import Any, List, Mapping, Optional
-from .models import MeasurementMetadata
+from .models import MeasurementMetadata, ModelMetadata
 import shutil
 import dotenv
 from pymongo.asynchronous.collection import AsyncCollection
-from .tasks import handle_measurement_upload
+from .tasks import handle_measurement_upload, handle_model_upload
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
     dotenv.load_dotenv(".env")
     app.state.client = await connect_to_db()
     app.state.FILE_PATH=Path(os.getenv("FILE_PATH"))
+    app.state.MODEL_PATH=Path(os.getenv("MODEL_PATH"))
     app.state.FILE_PATH.mkdir(exist_ok=True)
     app.state.db = app.state.client.get_database("brics")
     yield
@@ -179,4 +180,92 @@ async def deleteMeasurement(measurement_id: str = Query(None)):
 
     return JSONResponse(content=measurement, status_code=200)
 
+@app.put("/models/upload")
+async def upload_model  (model_zip: UploadFile = Form(...),
+                         model_metadata: str = Form(...)):
+    
+    try:
+        metadata_dict = json.loads(model_metadata)
+        if not isinstance(metadata_dict, dict):
+            raise ValueError()
+    except Exception:
+        raise HTTPException(400, "Metadata must be a JSON object")
+    
+    model_coll: AsyncCollection = app.state.db.get_collection("models")
 
+    if "_id" not in metadata_dict:
+        raise HTTPException(400, "Missing ID from metadata")
+    
+    try:
+        _id = bs.ObjectId(metadata_dict["_id"])
+    except Exception:
+        _id = bs.ObjectId()
+
+    existing_model = await model_coll.find_one({"_id": _id})
+
+    if existing_model:
+        model_id = str(existing_model["_id"])
+    else:
+        model_id = str(_id)
+
+    metadata_dict["filepath_weights"] = app.state.MODEL_PATH / f"{model_id}_weights"
+    metadata_dict["filepath_pth"] = app.state.MODEL_PATH / f"{model_id}_pth"
+    
+    metadata = ModelMetadata(**metadata_dict)
+
+    tmp_file = tempfile.NamedTemporaryFile(delete=False)
+    shutil.copyfileobj(model_zip.file, tmp_file)
+    handle_model_upload.delay(tmp_file.name, metadata.model_dump())
+    
+    model_zip.file.close()
+
+    return_json = metadata.model_dump_json(by_alias=True)
+
+    return JSONResponse(content=return_json, status_code=202)
+
+@app.get("/models/download")
+async def download_model():
+
+    coll: AsyncCollection  = app.state.db.get_collection("models")
+
+    model = await coll.find_one()
+
+    tmp_dir = Path(tempfile.mkdtemp())
+    model_dir = tmp_dir / "model"
+    model_dir.mkdir()
+
+    model_dict = ModelMetadata(model).model_dump()
+
+    shutil.copyfile(model_dict["filepath_weights"], model_dir / "model_weights")
+    shutil.copyfile(model_dict["filepath_pth"], model_dir / "model_pth")
+
+    zip_path = tmp_dir / "model.zip"
+    zip_directory(model_dir, zip_path)
+
+    return FileResponse(
+            zip_path, filename=f"model.zip", media_type="application/zip", background=BackgroundTask(shutil.rmtree, tmp_dir)
+        )
+
+@app.delete("/models/delete")
+async def delete_model(model_id: str = Query(None)):
+
+    if not model_id:
+        raise HTTPException(400, "No model id")
+
+    try:
+        oid = bs.ObjectId(model_id)
+    except Exception:
+        raise HTTPException(400, "Invalid model id")
+    
+    coll: AsyncCollection = app.state.db.get_collection("measurements")
+
+    filepath_weights: Path = app.state.MODEL_PATH / f"{model_id}_weights"
+    filepath_pth: Path = app.state.MODEL_PATH / f"{model_id}_pth"
+
+
+
+    model = await coll.find_one_and_delete({"_id": oid})
+
+    if model:
+        filepath_weights.unlink(missing_ok=True)
+        filepath_pth.unlink(missing_ok=True)

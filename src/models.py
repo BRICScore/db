@@ -28,3 +28,13 @@ class MeasurementMetadata(BaseModel):
     labels: LabelsData
 
 
+class ModelMetadata(BaseModel):
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(alias="_id")
+    timestamp: float
+    filepath_weights: str
+    filepath_pth: str
+
+
