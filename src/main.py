@@ -59,9 +59,9 @@ async def uploadMeasurement(measurement_file_zip: UploadFile = File(...),
     existing_measurement = await measurement_coll.find_one({"_id": _id})
 
     if existing_measurement:
-        measurement_id = str(existing_measurement["_id"])
+        measurement_id = existing_measurement["_id"]
     else:
-        measurement_id = str(_id)
+        measurement_id = _id
 
     filepath_raw: Path = app.state.FILE_PATH / f"{measurement_id}_raw"
     filepath_clean: Path = app.state.FILE_PATH / f"{measurement_id}_clean"
@@ -74,7 +74,7 @@ async def uploadMeasurement(measurement_file_zip: UploadFile = File(...),
 
     tmp_file = tempfile.NamedTemporaryFile(delete=False)
     shutil.copyfileobj(measurement_file_zip.file, tmp_file)
-    handle_measurement_upload.delay(tmp_file.name, metadata.model_dump())
+    handle_measurement_upload.delay(tmp_file.name, metadata.model_dump_json(by_alias=True))
     
     measurement_file_zip.file.close()
     return_json = metadata.model_dump_json(by_alias=True)
@@ -204,9 +204,9 @@ async def upload_model  (model_zip: UploadFile = Form(...),
     existing_model = await model_coll.find_one({"_id": _id})
 
     if existing_model:
-        model_id = str(existing_model["_id"])
+        model_id = existing_model["_id"]
     else:
-        model_id = str(_id)
+        model_id = _id
 
     metadata_dict["filepath_weights"] = app.state.MODEL_PATH / f"{model_id}_weights"
     metadata_dict["filepath_pth"] = app.state.MODEL_PATH / f"{model_id}_pth"
@@ -216,7 +216,7 @@ async def upload_model  (model_zip: UploadFile = Form(...),
 
     tmp_file = tempfile.NamedTemporaryFile(delete=False)
     shutil.copyfileobj(model_zip.file, tmp_file)
-    handle_model_upload.delay(tmp_file.name, metadata.model_dump())
+    handle_model_upload.delay(tmp_file.name, metadata.model_dump_json(by_alias=True))
     
     model_zip.file.close()
 

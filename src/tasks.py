@@ -10,17 +10,18 @@ from .utils import jsonl_to_bson, zip_directory
 import shutil
 from bson import ObjectId
 import datetime
+import json
 
 MAX_UNCOMPRESSED_SIZE = 1500 * 1024 * 1024
 
 @worker_app.task
-def handle_measurement_upload(tmp_file: str, metadata_dict: dict):
+def handle_measurement_upload(tmp_file: str, metadata_dict: str):
     db = get_db_for_worker()
     coll = db.get_collection("measurements")
     FILEPATH = os.getenv("FILE_PATH")
 
     try:
-        metadata = MeasurementMetadata(**metadata_dict)
+        metadata = MeasurementMetadata(**json.loads(metadata_dict))
         tmp_dir = Path(tempfile.mkdtemp())
         with zipfile.ZipFile(tmp_file, "r") as zf:
             total = sum(info.file_size for info in zf.infolist())
@@ -62,12 +63,12 @@ def handle_measurement_upload(tmp_file: str, metadata_dict: dict):
     Path(tmp_file).unlink(missing_ok=True)
 
 @worker_app.task
-def handle_model_upload(tmp_file: str, metadata_dict: dict):
+def handle_model_upload(tmp_file: str, metadata_dict: str):
     db = get_db_for_worker()
     coll = db.get_collection("models")
 
     try:
-        metadata = ModelMetadata(**metadata_dict)
+        metadata = ModelMetadata(**json.loads(metadata_dict))
         tmp_dir = Path(tempfile.mkdtemp())
         with zipfile.ZipFile(tmp_file, "r") as zf:
             total = sum(info.file_size for info in zf.infolist())

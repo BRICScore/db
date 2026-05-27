@@ -19,7 +19,7 @@ class MeasurementMetadata(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, json_encoders={ObjectId: str}, populate_by_name=True)
 
-    id: str = Field(alias="_id")
+    id: ObjectId = Field(alias="_id")
     timestamp: float
     duration_ms: int
     filepath_raw: str
@@ -32,7 +32,7 @@ class ModelMetadata(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: str = Field(alias="_id")
+    id: ObjectId = Field(alias="_id")
     timestamp: float
     filepath_weights: str
     filepath_pth: str
