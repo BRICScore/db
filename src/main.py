@@ -35,7 +35,7 @@ app = FastAPI(title="BRICS API",lifespan=lifespan)
 async def test():
     return {"status": "ok"}
 
-@app.put("/measurement/upload")
+@app.put("/measurements/upload")
 async def uploadMeasurement(measurement_file_zip: UploadFile = File(...),
                             measurement_metadata: str = Form(...)):
     
@@ -81,7 +81,7 @@ async def uploadMeasurement(measurement_file_zip: UploadFile = File(...),
                 
     return JSONResponse(content=return_json, status_code=202)
 
-@app.get("/measurement/download")
+@app.get("/measurements/download")
 async def downloadMeasurements( person_id: Optional[str] = Query(None),  
                                 length_min: Optional[int] = Query(0),
                                 length_max: Optional[int] = Query(86400000),
@@ -157,7 +157,7 @@ async def downloadMeasurements( person_id: Optional[str] = Query(None),
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise
 
-@app.delete("/measurement/delete")
+@app.delete("/measurements/delete")
 async def deleteMeasurement(measurement_id: str = Query(None)):
     coll: AsyncCollection = app.state.db.get_collection("measurements")
 
