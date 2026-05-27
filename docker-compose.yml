@@ -7,6 +7,7 @@ services:
     volumes:
       - ./certs:/certs:ro
       - /home/brics/dataset:/dataset
+      - /home/brics/models:/models
     restart: unless-stopped
 
   mongo:
@@ -51,6 +52,9 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    volumes:
+      - /home/brics/dataset:/dataset
+      - /home/brics/models:/models
     depends_on:
       - redis
       - api
@@ -64,5 +68,8 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    volumes:
+      - /home/brics/dataset:/dataset
+      - /home/brics/models:/models
     depends_on:
       - redis
