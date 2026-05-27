@@ -30,7 +30,7 @@ class MeasurementMetadata(BaseModel):
 
 class ModelMetadata(BaseModel):
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, json_encoders={ObjectId: str}, populate_by_name=True)
 
     id: ObjectId = Field(alias="_id")
     timestamp: float
